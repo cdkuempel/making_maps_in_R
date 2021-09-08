@@ -132,7 +132,7 @@ plot(st_geometry(pop_shp))
 plot(pop_shp["persons"])
 ```
 
-## Workflow 2:Mapping with ggplot2
+## Workflow 2: Mapping with ggplot2
 
 Ggplot2 can make some really great looking maps. A plus is that many of you may already use ggplot2 to make figures so some aspects of formatting figures may already be familiar.
 
@@ -145,12 +145,14 @@ ggplot() +
           theme_bw() +
   theme(axis.text.x = element_text(angle = 90, vjust = 1)) 
 ```
-Using the **ggspatial** package we can add things like a scale bar and north arrow
+
+Using the **ggspatial** package we can add things like a scale bar and north arrow:
 
 ```{r}
-labels<-st_centroid(pop_shp) %>% 
-  filter(sa2_name == "Brisbane City") %>% 
-  mutate(label = ifelse(sa2_name == "Brisbane City", "Brisbane City", NA))
+# You can add labels by getting the centroid, but we will skip this
+#labels<-st_centroid(pop_shp) %>% 
+#  filter(sa2_name == "Brisbane City") %>% 
+#  mutate(label = ifelse(sa2_name == "Brisbane City", "Brisbane City", NA))
 
 ggplot() +
   geom_sf(data = pop_shp, aes(fill = persons)) +
@@ -166,11 +168,7 @@ ggplot() +
         pad_x = unit(0.1, "in"), pad_y = unit(0.2, "in"),
         style = north_arrow_fancy_orienteering) +
   scale_fill_viridis_c() +
-  labs(fill = "Population") +
-  #geom_sf(data = labels, size = 1) +
-  #geom_text_repel(data = labels, aes(x = lng, y = lat, label = label))
-  #geom_sf_label(data = labels, aes(label = label))
-
+  labs(fill = "Population") 
 ```
 
 ## Workflow 3: Mapping with Tmap
@@ -241,7 +239,7 @@ Now let's try to make our map interactive
 tmap_mode("view") #This changes from plot to interactive
 tm_basemap("Stamen.Watercolor") + # there are a lot of different base maps to choose from
 tm_shape(pop_shp) + 
-  tm_polygons("persons", size = "persons") +
+  tm_polygons("persons", size = "persons", style = "cont") +
 tm_tiles("Stamen.TonerLabels")
 ```
 
@@ -377,5 +375,15 @@ shinyApp(
 
 [Leaflet for R](https://rstudio.github.io/leaflet/)
 
+[absmapsdata package](https://github.com/wfmackey/absmapsdata)
+
+[Introduction to mapping in R](https://medium.com/analytics-vidhya/mapping-australia-in-r-6ce092c48b49)
+
 [How to make web-ready US county-level maps](https://asmae-toumi.netlify.app/posts/2020-08-10-how-to-make-web-ready-us-county-level-maps/)
+
+[Plotting simple features](https://r-spatial.github.io/sf/articles/sf5.html)
+
+[tmap: get started!](https://cran.r-project.org/web/packages/tmap/vignettes/tmap-getstarted.html)
+
+
 
