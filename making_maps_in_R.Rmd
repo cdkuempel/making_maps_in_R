@@ -1,0 +1,381 @@
+---
+title: "R-Ladies Nairobi Meetup: Make Web-ready Maps"
+author: "Asmae Toumi"
+date: "7/28/2021"
+output: html_document
+runtime: shiny
+---
+
+## Introduction to spatial
+
+-   The `sf` package stands for Simple Features. Simple Features is a "hierarchical data model that represents a wide range of geometry types" (Lovelace, 2021).
+
+![Simple Features classes](sf-classes.png)
+
+-   The **sf** package in R provides a set of tools for working with the simple feature objects listed above.
+
+-   Simple feature objects in R are stored in a data frame, with geographic data occupying a special column, usually named 'geom' or 'geometry'. **This is huge, because we can treat spatial objects as regular data frames!** We can also think of **sf** as "[**s**]{.ul}patial data [**f**]{.ul}rame".
+
+-   Advantages of simple features and the **sf** package (Lovelace 2021):
+
+    -   Fast reading and writing of data
+
+    -   Enhanced plotting performance
+
+    -   **sf** objects can be treated as data frames in most operations
+
+    -   **sf** functions can be combined using `%>%` operator
+
+    -   **sf** function names are relatively consistent and intuitive (all begin with `st_*`)
+
+Due to these advantages, the **sf** package is now supported in many popular packages like **tmap** (ggplot2 but for maps) and **tidycensus** (US Census data). Many packages still use the **sp** package - **sf**'s predecessor - which has objects of class `Spatial`. There are helpful functions to switch between `Spatial` and `sf` classes depending on which one the package(s) you use support.
+
+## Packages needed
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message = F, warning = F)
+```
+
+```{r libraries}
+library(tidyverse) # cleaning, wrangling
+library(janitor) # cleaning
+library(sf) # spatial manipulation
+#library(rKenyaCensus) # kenya shapefiles and census
+#library(readabs) # Australian census
+#library(r2d3maps) # D3 maps
+library(shiny) # interactive web apps
+library(shinycssloaders) # loading symbol for app
+library(leaflet) # leaflet maps
+library(RColorBrewer) # color palettes
+library(htmltools) # HTML generation and tools
+library(here) #File paths
+library(Census2016)
+library(ggspatial)
+library(tmap)
+
+
+options(timeout=1000)
+remotes::install_github("wfmackey/absmapsdata")
+
+library(absmapsdata)
+```
+
+## Data
+
+We'll be using the **Census2016** package to obtain rich, county-level demographic, social, and economic Census data. 
+
+The Census2016 package has several data.tables. We will use the **Census2016_wide_by_SA2_year** data.table that has multiple variables for each statistical area 2 (SA2)-census year combination.
+
+```{r}
+str(Census2016_wide_by_SA2_year)
+```
+
+We will subset this dat to only include population in each SA2 and we will subset to only include data from the year 2016.
+
+```{r}
+population<-Census2016_wide_by_SA2_year %>% 
+  select(sa2_name, sa2_code, year, persons) %>% 
+  filter(year == 2016)
+```
+
+We use the **absmapsdata** package to get shapefiles of each SA2 across australia. You can find more information on this here: https://github.com/wfmackey/absmapsdata
+
+```{r}
+aus_shp<-sa22016
+```
+
+Inspecting the output:
+
+```{r}
+str(aus_shp)
+```
+
+As expected, we have a dataframe of class `sf`, with a column named `geometry` column, of class `sfc_MULTIPOLYGON`.
+
+Let's subset the data to only include Greater Brisbane to speed up our processing times.
+
+```{r}
+bris<-aus_shp %>% 
+  filter(gcc_name_2016 == "Greater Brisbane")
+```
+
+Now let's join the population data to the `shp` data. We will join by the sa2 codes to avoid any problems with differences in names.
+
+```{r}
+pop_shp <- 
+  bris %>% 
+  select(sa2_main_2016, sa2_name_2016, sa3_name_2016) %>% 
+  mutate(sa2_code = as.integer(sa2_main_2016)) %>% #changing from character to integer
+  left_join(population, by = "sa2_code") 
+```
+
+```{r}
+head(pop_shp)
+```
+
+Before we start mapping, it may be worthwhile to check the Coordinate Reference System (CRS) of your spatial data frame. Coordinate Reference System (CRS) define how the spatial elements of the data relate to the surface of the Earth (or other bodies). The geometries are in the WGS 84 projection. If you wanted to change it, you would use `st_tranform()` :
+
+```{r}
+st_crs(pop_shp)<-4326
+st_transform(pop_shp, 4326)
+```
+## Workflow 1: The simplest plots
+
+```{r}
+plot(pop_shp)
+```
+
+```{r}
+plot(st_geometry(pop_shp))
+```
+```{r}
+plot(pop_shp["persons"])
+```
+
+## Workflow 2:Mapping with ggplot2
+
+Ggplot2 can make some really great looking maps. A plus is that many of you may already use ggplot2 to make figures so some aspects of formatting figures may already be familiar.
+
+```{r}
+ggplot() +
+  geom_sf(data = pop_shp, aes(fill = persons)) +
+  ggtitle("Greater Brisbane") +
+          xlab("Longitude") +
+          ylab("Latitude") + 
+          theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 1)) 
+```
+Using the **ggspatial** package we can add things like a scale bar and north arrow
+
+```{r}
+labels<-st_centroid(pop_shp) %>% 
+  filter(sa2_name == "Brisbane City") %>% 
+  mutate(label = ifelse(sa2_name == "Brisbane City", "Brisbane City", NA))
+
+ggplot() +
+  geom_sf(data = pop_shp, aes(fill = persons)) +
+  ggtitle("Greater Brisbane") +
+          xlab("Longitude") +
+          ylab("Latitude") + 
+          theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 1),
+        panel.background = element_rect(fill = "grey"),
+        panel.grid.major = element_line(color = gray(0.5), linetype = "dashed")) +
+  annotation_scale(location = "bl", width_hint = 0.4) +
+    annotation_north_arrow(location = "bl", which_north = "true", 
+        pad_x = unit(0.1, "in"), pad_y = unit(0.2, "in"),
+        style = north_arrow_fancy_orienteering) +
+  scale_fill_viridis_c() +
+  labs(fill = "Population") +
+  #geom_sf(data = labels, size = 1) +
+  #geom_text_repel(data = labels, aes(x = lng, y = lat, label = label))
+  #geom_sf_label(data = labels, aes(label = label))
+
+```
+
+## Workflow 3: Mapping with Tmap
+
+The **tmap** package (short for thematic map) offers a wide range of approaches to create thematic maps - including interactive options.
+
+There are plenty of great tutorials online. I based this exercise off of: https://thinking-spatial.org/courses/angewandte_geodatenverarbeitung/kurs04/
+
+You can tips and random examples from within the package:
+
+```{r}
+tmap_tip()
+```
+
+There is also build in spatial data, which can you subset, or join your own data, etc.
+
+```{r}
+data("World")
+World
+```
+```{r}
+tm_shape(World) +
+  tm_polygons("life_exp")
+```
+
+```{r}
+tm_shape(World) +
+  tm_polygons(c("life_exp", "economy")) +
+  tm_facets(sync = TRUE, ncol = 2)
+```
+
+```{r}
+tmap_mode("plot")
+```
+```{r}
+tm_shape(pop_shp) +
+  tm_fill("persons")
+```
+
+```{r}
+tm_shape(pop_shp) +
+  tm_fill("persons") +
+  tm_facets(by = "sa3_name_2016")
+```
+
+```{r}
+tm_shape(pop_shp) + 
+  tm_polygons() +
+  tm_bubbles(size = "persons")
+```
+
+Let's make our population map prettier. There are a lot of preset options to make this easy, or you can do it manually.
+
+```{r}
+tmap_style("classic") #natural, cobalt
+
+tm_shape(pop_shp) +
+  tm_polygons("persons", title = "Population", style = "cont") +
+  tm_layout(legend.outside = TRUE) +
+  tm_scale_bar(position = c("right", "top")) + # add scale bar to the top right
+  tm_compass(type = "arrow",
+             position = c("right", "top"))
+```
+
+Now let's try to make our map interactive
+
+```{r}
+tmap_mode("view") #This changes from plot to interactive
+tm_basemap("Stamen.Watercolor") + # there are a lot of different base maps to choose from
+tm_shape(pop_shp) + 
+  tm_polygons("persons", size = "persons") +
+tm_tiles("Stamen.TonerLabels")
+```
+
+
+## Workflow 4: Leaflet
+
+[Leaflet](http://leafletjs.com/) is a very popular open-source JavaScript library for interactive maps. Many websites use it, such as the New York Times, Washington Post, and GIS software like OpenStreetMap, Mapbox and CartoDB. The **leaflet** R package has many helpful features to help make interactive leaflet maps:
+
+-   Interactive panning/zooming
+
+-   Layer many combinations:
+
+    -   Map tiles
+
+    -   Markers
+
+    -   Polygons
+
+    -   Lines
+
+    -   Popups
+
+    -   GeoJSON
+
+-   Never have to leave R/RStudio
+
+-   Easily insert maps in **RMarkdown**, **Shiny** and more
+
+-   Easily render spatial objects from the `sp` or `sf` packages, or data frames with latitude/longitude columns
+
+-   Display maps in non-spherical mercator projections
+
+-   Augment map features using chosen plugins from [leaflet plugins repository](http://leafletjs.com/plugins)
+
+We'll be making a chloropleth of Brisbane SA2-level populations, that we will embed in a **Shiny** dashboard:
+
+```{r}
+# color palette 
+pal <- 
+  colorBin(
+  palette = "YlOrRd",
+  domain = pop_shp$persons)
+
+# pop up message
+labels <- 
+  sprintf(
+  "<strong>%s</strong><br/>%g",
+  pop_shp$sa2_name, pop_shp$persons) %>% 
+  lapply(htmltools::HTML)
+
+
+shinyApp(
+ ui <- navbarPage("Leaflet", id="nav", 
+                 
+                 tabPanel(
+                   "Interactive map",
+                   withSpinner(leafletOutput(
+                     outputId = "mymap", 
+                     width = "900px", 
+                     height = "500px"))),
+                 
+                 tabPanel("Explore the data",
+                          DT::dataTableOutput("table"))
+),
+
+  server <- function(input, output) {
+  
+# map panel 
+  output$mymap <- renderLeaflet({
+    
+    # passing the shp df to leaflet
+    leaflet(pop_shp) %>%
+      # zooming in on Brisbane
+      setView(153.0260, -27.4705, 8) %>% # long/lat
+      # adding tiles, without labels to minimize clutter
+      addProviderTiles("CartoDB.PositronNoLabels") %>%
+      # parameters for the polygons
+      addPolygons(
+        fillColor = ~pal(persons), 
+        weight = 1,
+        opacity = 1,
+        color = "white",
+        fillOpacity = 0.7,
+        highlight = highlightOptions(
+          weight = 2,
+          color = "#666",
+          fillOpacity = 0.7,
+          bringToFront = TRUE),
+        label = labels,
+        labelOptions = labelOptions(
+          style = list("font-weight" = "normal"),
+          textsize = "15px",
+          direction = "auto")) %>%
+      # legend
+      addLegend(pal = pal,
+            values = pop_shp$persons,
+            position = "bottomright",
+            title = "Population",
+            opacity = 0.8,
+            na.label = "No data")
+  })
+  
+  # data panel
+  output$table <- DT::renderDataTable({
+    DT::datatable(pop_shp %>% st_drop_geometry(), rownames = F,  filter = 'top',
+                  extensions = c('Buttons', 'FixedHeader', 'Scroller'),
+                  options = list(pageLength = 15, lengthChange = F,
+                                 fixedHeader = TRUE,
+                                 dom = 'lfBrtip',
+                                 list('copy', 'print', list(
+                                   extend = 'collection',
+                                   buttons = c('csv', 'excel', 'pdf'),
+                                   text = 'Download'
+                                 ))
+                  ))
+  })
+  
+}
+
+,
+
+  options = list(height = 700)
+)
+
+```
+
+
+## References
+
+[Geocomputation with R](https://geocompr.robinlovelace.net/spatial-class.html)
+
+[sf Package Documentation](https://r-spatial.github.io/sf/)
+
+[Leaflet for R](https://rstudio.github.io/leaflet/)
+
+[How to make web-ready US county-level maps](https://asmae-toumi.netlify.app/posts/2020-08-10-how-to-make-web-ready-us-county-level-maps/)
+
