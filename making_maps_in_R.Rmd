@@ -1,7 +1,7 @@
 ---
-title: "R-Ladies Nairobi Meetup: Make Web-ready Maps"
-author: "Asmae Toumi"
-date: "7/28/2021"
+title: "Intro to Map Making in R"
+author: "Caitie Kuempel"
+date: "15/09/2021"
 output: html_document
 runtime: shiny
 ---
