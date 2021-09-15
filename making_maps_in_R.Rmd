@@ -37,22 +37,22 @@ knitr::opts_chunk$set(message = F, warning = F)
 ```
 
 ```{r}
-install.packages(c(
-  "tidyverse",
-  "janitor",
-  "sf",
-  "shiny",
-  "shinycssloaders",
-  "leaflet",
-  "RColorBrewer",
-  "htmltools",
-  "here",
-  "Census2016",
-  "ggspatial",
-  "tmap"
-))
+#install.packages(c(
+#  "tidyverse",
+#  "janitor",
+#  "sf",
+#  "shiny",
+#  "shinycssloaders",
+#  "leaflet",
+#  "RColorBrewer",
+#  "htmltools",
+#  "here",
+#  "Census2016",
+#  "ggspatial",
+#  "tmap"
+#))
 
-remotes::install_github("wfmackey/absmapsdata")
+#remotes::install_github("wfmackey/absmapsdata")
 ```
 
 ```{r libraries}
@@ -65,10 +65,10 @@ library(leaflet) # leaflet maps
 library(RColorBrewer) # color palettes
 library(htmltools) # HTML generation and tools
 library(here) #File paths
-library(Census2016)
+library(Census2016) # Census data
 library(ggspatial)
 library(tmap)
-library(absmapsdata)
+library(absmapsdata) # Australia spatial data
 ```
 
 ## Data
