@@ -36,6 +36,25 @@ Due to these advantages, the **sf** package is now supported in many popular pac
 knitr::opts_chunk$set(message = F, warning = F)
 ```
 
+```{r}
+install.packages(c(
+  "tidyverse",
+  "janitor",
+  "sf",
+  "shiny",
+  "shinycssloaders",
+  "leaflet",
+  "RColorBrewer",
+  "htmltools",
+  "here",
+  "Census2016",
+  "ggspatial",
+  "tmap"
+))
+
+remotes::install_github("wfmackey/absmapsdata")
+```
+
 ```{r libraries}
 library(tidyverse) # cleaning, wrangling
 library(janitor) # cleaning
@@ -49,11 +68,6 @@ library(here) #File paths
 library(Census2016)
 library(ggspatial)
 library(tmap)
-
-
-#options(timeout=1000)
-#remotes::install_github("wfmackey/absmapsdata")
-
 library(absmapsdata)
 ```
 
