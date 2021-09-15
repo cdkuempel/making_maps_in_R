@@ -40,9 +40,6 @@ knitr::opts_chunk$set(message = F, warning = F)
 library(tidyverse) # cleaning, wrangling
 library(janitor) # cleaning
 library(sf) # spatial manipulation
-#library(rKenyaCensus) # kenya shapefiles and census
-#library(readabs) # Australian census
-#library(r2d3maps) # D3 maps
 library(shiny) # interactive web apps
 library(shinycssloaders) # loading symbol for app
 library(leaflet) # leaflet maps
@@ -54,8 +51,8 @@ library(ggspatial)
 library(tmap)
 
 
-options(timeout=1000)
-remotes::install_github("wfmackey/absmapsdata")
+#options(timeout=1000)
+#remotes::install_github("wfmackey/absmapsdata")
 
 library(absmapsdata)
 ```
@@ -70,6 +67,12 @@ The Census2016 package has several data.tables. We will use the **Census2016_wid
 str(Census2016_wide_by_SA2_year)
 ```
 
+The Census2016 package should work well, but if not you can also load the data with this script
+
+```{r}
+#Census2016_wide_by_SA2_year<-read.csv(here("data/Census_data.csv"))
+```
+
 We will subset this dat to only include population in each SA2 and we will subset to only include data from the year 2016.
 
 ```{r}
@@ -81,7 +84,19 @@ population<-Census2016_wide_by_SA2_year %>%
 We use the **absmapsdata** package to get shapefiles of each SA2 across australia. You can find more information on this here: https://github.com/wfmackey/absmapsdata
 
 ```{r}
-aus_shp<-sa22016
+aus_shp<-sa22016 %>% 
+  rename(gcc_n_2016 = gcc_name_2016,
+         sa2_m_2016 = sa2_main_2016, 
+         sa2_n_2016 = sa2_name_2016, 
+         sa3_n_2016 = sa3_name_2016)
+
+#st_write(aus_shp, here("data/sa22016.shp"))
+```
+
+The **absmapsdata** package can be hard to load. If you have problems you can also load the data here
+
+```{r}
+#aus_shp<-st_read(here("data/sa22016.shp"))
 ```
 
 Inspecting the output:
@@ -96,7 +111,7 @@ Let's subset the data to only include Greater Brisbane to speed up our processin
 
 ```{r}
 bris<-aus_shp %>% 
-  filter(gcc_name_2016 == "Greater Brisbane")
+  filter(gcc_n_2016 == "Greater Brisbane")
 ```
 
 Now let's join the population data to the `shp` data. We will join by the sa2 codes to avoid any problems with differences in names.
@@ -104,8 +119,8 @@ Now let's join the population data to the `shp` data. We will join by the sa2 co
 ```{r}
 pop_shp <- 
   bris %>% 
-  select(sa2_main_2016, sa2_name_2016, sa3_name_2016) %>% 
-  mutate(sa2_code = as.integer(sa2_main_2016)) %>% #changing from character to integer
+  select(sa2_m_2016, sa2_n_2016, sa3_n_2016) %>% 
+  mutate(sa2_code = as.integer(sa2_m_2016)) %>% #changing from character to integer
   left_join(population, by = "sa2_code") 
 ```
 
@@ -128,6 +143,7 @@ plot(pop_shp)
 ```{r}
 plot(st_geometry(pop_shp))
 ```
+
 ```{r}
 plot(pop_shp["persons"])
 ```
@@ -189,6 +205,8 @@ There is also build in spatial data, which can you subset, or join your own data
 data("World")
 World
 ```
+
+
 ```{r}
 tm_shape(World) +
   tm_polygons("life_exp")
@@ -203,6 +221,8 @@ tm_shape(World) +
 ```{r}
 tmap_mode("plot")
 ```
+
+
 ```{r}
 tm_shape(pop_shp) +
   tm_fill("persons")
@@ -211,7 +231,7 @@ tm_shape(pop_shp) +
 ```{r}
 tm_shape(pop_shp) +
   tm_fill("persons") +
-  tm_facets(by = "sa3_name_2016")
+  tm_facets(by = "sa3_n_2016")
 ```
 
 ```{r}
@@ -237,12 +257,14 @@ Now let's try to make our map interactive
 
 ```{r}
 tmap_mode("view") #This changes from plot to interactive
+```
+
+```{r}
 tm_basemap("Stamen.Watercolor") + # there are a lot of different base maps to choose from
 tm_shape(pop_shp) + 
   tm_polygons("persons", size = "persons", style = "cont") +
 tm_tiles("Stamen.TonerLabels")
 ```
-
 
 ## Workflow 4: Leaflet
 
@@ -281,26 +303,26 @@ We'll be making a chloropleth of Brisbane SA2-level populations, that we will em
 pal <- 
   colorBin(
   palette = "YlOrRd",
-  domain = pop_shp$persons)
+  domain = pop_shp$persons) #change to your data here
 
 # pop up message
 labels <- 
   sprintf(
   "<strong>%s</strong><br/>%g",
-  pop_shp$sa2_name, pop_shp$persons) %>% 
+  pop_shp$sa2_name, pop_shp$persons) %>% #change to your data here
   lapply(htmltools::HTML)
 
 
 shinyApp(
  ui <- navbarPage("Leaflet", id="nav", 
-                 
+                # a tab for the map 
                  tabPanel(
                    "Interactive map",
                    withSpinner(leafletOutput(
                      outputId = "mymap", 
                      width = "900px", 
                      height = "500px"))),
-                 
+                 # A tab to explore the data in table format
                  tabPanel("Explore the data",
                           DT::dataTableOutput("table"))
 ),
@@ -311,7 +333,7 @@ shinyApp(
   output$mymap <- renderLeaflet({
     
     # passing the shp df to leaflet
-    leaflet(pop_shp) %>%
+    leaflet(pop_shp) %>% #change to your data here
       # zooming in on Brisbane
       setView(153.0260, -27.4705, 8) %>% # long/lat
       # adding tiles, without labels to minimize clutter
@@ -335,16 +357,16 @@ shinyApp(
           direction = "auto")) %>%
       # legend
       addLegend(pal = pal,
-            values = pop_shp$persons,
+            values = pop_shp$persons, #change to your data here
             position = "bottomright",
-            title = "Population",
+            title = "Population", #change to your data here
             opacity = 0.8,
             na.label = "No data")
   })
   
   # data panel
   output$table <- DT::renderDataTable({
-    DT::datatable(pop_shp %>% st_drop_geometry(), rownames = F,  filter = 'top',
+    DT::datatable(pop_shp %>% st_drop_geometry(), rownames = F,  filter = 'top', #change to your data here
                   extensions = c('Buttons', 'FixedHeader', 'Scroller'),
                   options = list(pageLength = 15, lengthChange = F,
                                  fixedHeader = TRUE,
