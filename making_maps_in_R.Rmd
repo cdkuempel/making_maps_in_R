@@ -110,7 +110,7 @@ aus_shp<-sa22016 %>%
 The **absmapsdata** package can be hard to load. If you have problems you can also load the data here
 
 ```{r}
-#aus_shp<-st_read(here("data/sa22016.shp"))
+aus_shp<-st_read(here("data/sa22016.shp"))
 ```
 
 Inspecting the output:
@@ -257,7 +257,7 @@ tm_shape(pop_shp) +
 Let's make our population map prettier. There are a lot of preset options to make this easy, or you can do it manually.
 
 ```{r}
-tmap_style("classic") #natural, cobalt
+tmap_style("natural") #natural, cobalt
 
 tm_shape(pop_shp) +
   tm_polygons("persons", title = "Population", style = "cont") +
